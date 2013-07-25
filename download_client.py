@@ -24,8 +24,7 @@ jm = None
 
 class JobManager:
     def __init__(self):
-        #self.host = 'http://ivod.kcwu.csie.org/'
-        self.host = 'http://192.168.0.254:8080/'
+        self.host = 'http://ivod.kcwu.csie.org/'
         self.name = ''
         self.token = ''
         self.token_file = 'token.txt'
@@ -55,7 +54,7 @@ class JobManager:
                 print 'url:', url
                 print 'data:', data
                 print 'sleep...'
-                time.sleep(30)
+                time.sleep(60*10)
                 print 'retry'
                 continue
 
@@ -163,7 +162,6 @@ def fetch(job):
             tmp_a, tmp_b, tmp_c, url, tmp_log)
     p = subprocess.Popen(cmd, shell=True)
     p.wait()
-    print 'returncode', p.returncode
 
     logdata = ''
     if os.path.exists(tmp_log):
@@ -173,13 +171,13 @@ def fetch(job):
         os.rename(tmp_a, os_filename(fn))
 
         info = util.collect_video_info(os_filename(fn))
-        return dict(state='downloaded', sleep=3, info=json.dumps(info, sort_keys=True))
+        return dict(state='downloaded', sleep=10, info=json.dumps(info, sort_keys=True))
 
     g_alt_server = not g_alt_server
     if '404 (Not Found)' in logdata:
-        return dict(state='404', sleep=1)
+        return dict(state='404', sleep=10)
     else:
-        return dict(state='failed', sleep=10)
+        return dict(state='failed', sleep=60)
 
 def worker(bw):
     while True:
@@ -190,9 +188,11 @@ def worker(bw):
         if not job:
             break
         if job == 'done':
+            print 'done'
             break
         if job == 'wait':
-            time.sleep(60)
+            print 'wait'
+            time.sleep(60 * 10)
             continue
 
         result = None
@@ -200,7 +200,7 @@ def worker(bw):
             result = fetch(job)
         finally:
             if not result:
-                result = dict(state='failed', sleep=10)
+                result = dict(state='failed', sleep=60*10)
             jm.change_state(job, result['state'], result.get('info'))
         if result['sleep']:
             print 'sleep', result['sleep'], 'seconds'

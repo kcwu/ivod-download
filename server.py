@@ -20,7 +20,7 @@ from ivod_db import DB
 g_dblock = threading.RLock()
 
 def error_page(status, message, traceback, version):
-    return status
+    return status + ' ' + message
 
 class IVOD:
     @cherrypy.expose
@@ -55,7 +55,6 @@ class IVOD:
 
     @cherrypy.expose
     def register(self, name, contact):
-        print 'foobar'
         if not name or not contact:
             return json.dumps(dict(result='error', msg='empty name or contact'))
         pattern = r'^[a-zA-Z0-9_@.-]+$'
@@ -81,7 +80,12 @@ class IVOD:
 
     
     @cherrypy.expose
-    def next(self, bw=None, name=None, token=None):
+    def next(self, *args, **argd):
+        bw = argd.get('bw')
+        name = argd.get('name')
+        token = argd.get('token')
+        if not name or not token:
+            return 'Empty name or token'
         db = DB()
         if db.get_user_token(name) != token:
             return json.dumps('invalid token')
@@ -134,7 +138,12 @@ class IVOD:
             return key
 
     @cherrypy.expose
-    def change(self, key, state, name=None, token=None, info=None):
+    def change(self, *args, **argd):
+        key = argd.get('key')
+        state = argd.get('state')
+        info = argd.get('info')
+        name = argd.get('name')
+        token = argd.get('token')
         db = DB()
         if db.get_user_token(name) != token:
             return 'invalid token'
