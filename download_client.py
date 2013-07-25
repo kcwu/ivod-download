@@ -15,8 +15,9 @@ import util
 
 parser = OptionParser()
 parser.add_option('-v', '--verbose', action='store_true')
-parser.add_option('--msdl_bin', default='./msdl')
+parser.add_option('--msdl_bin', type=str)
 
+msdl_bin = './msdl'
 
 g_alt_server = False
 jm = None
@@ -79,14 +80,16 @@ class JobManager:
                 f.write('%s\n%s\n' % (name, r['token']))
 
 
-
-
-
 def my_unlink(fn):
     try:
         os.unlink(fn)
     except OSError:
         pass
+
+def os_filename(fn):
+    if sys.platform == 'win32':
+        return fn.decode('utf8')
+    return fn
 
 def is_success(logdata, tmp_a, tmp_b, tmp_c):
     if not os.path.exists(tmp_a):
@@ -156,19 +159,20 @@ def fetch(job):
     my_unlink(tmp_log)
 
     cmd = '"%s" -s 5 -o %s -o %s -o %s "%s" 2>&1 | tee %s' % (
-            options.msdl_bin,
+            msdl_bin,
             tmp_a, tmp_b, tmp_c, url, tmp_log)
     p = subprocess.Popen(cmd, shell=True)
     p.wait()
+    print 'returncode', p.returncode
 
     logdata = ''
     if os.path.exists(tmp_log):
         logdata = file(tmp_log).read()
     if is_success(logdata, tmp_a, tmp_b, tmp_c):
-        os.rename(tmp_log, fn + '.log')
-        os.rename(tmp_a, fn)
+        os.rename(tmp_log, os_filename(fn + '.log'))
+        os.rename(tmp_a, os_filename(fn))
 
-        info = util.collect_video_info(fn)
+        info = util.collect_video_info(os_filename(fn))
         return dict(state='downloaded', sleep=3, info=json.dumps(info, sort_keys=True))
 
     g_alt_server = not g_alt_server
@@ -202,6 +206,26 @@ def worker(bw):
             print 'sleep', result['sleep'], 'seconds'
             time.sleep(result['sleep'])
 
+def check_dependency():
+    if not os.path.exists('tmp'):
+        os.mkdir('tmp')
+
+    assert 'sha512' in hashlib.algorithms
+    assert hashlib.sha512('hello').hexdigest() == '9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca72323c3d99ba5c11d7c7acc6e14b8c5da0c4663475c2e5c3adef46f73bcdec043'
+
+    global msdl_bin
+    if options.msdl_bin:
+        msdl_bin = options.msdl_bin
+    else:
+        if sys.platform == 'win32':
+            msdl_bin = r'msdl_win32\msdl.exe'
+
+    p = subprocess.Popen([msdl_bin], stderr=subprocess.PIPE)
+    stdout, stderr = p.communicate()
+    t = stderr
+
+    assert 'no target' in t
+
 def usage():
     print 'Usage: %s <cmd>' % sys.argv[0]
     print '''
@@ -212,7 +236,6 @@ Commands are:
         mid <= 230KB/s
         low <= 70KB/s
 '''
-    
 
 def main():
     global jm
@@ -220,6 +243,8 @@ def main():
     global args
 
     options, args = parser.parse_args()
+
+    check_dependency()
 
     if len(args) == 0:
         usage()

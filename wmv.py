@@ -16,7 +16,7 @@ VERIFIED_RESULT_BADSIZE = 'bad size'
 VERIFIED_RESULT_ZERO_DURATION = 'zero duration'
 
 def extract_metadata(fn):
-    print fn
+    #print fn
     video_parser = videoparser.VideoParser()
     video = video_parser.parse_file(fn)
     if not video:
