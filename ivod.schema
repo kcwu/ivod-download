@@ -1,0 +1,52 @@
+CREATE TABLE metadata_per_date (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fetch_date date,
+    text text
+);
+
+CREATE TABLE metadata (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    data text
+);
+
+-- state:
+--   no, downloading, downlaoded, stored, 404, failed
+CREATE TABLE download_state_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key text,
+    username,
+    state text,
+    last_modified TIMESTAMP DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
+);
+
+CREATE TABLE download_state (
+    key text PRIMARY KEY,
+    username text,
+    state text,
+    videodate DATE,
+    bw INTEGER,
+    clip INTEGER,
+    last_modified TIMESTAMP DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
+);
+CREATE INDEX download_state_index ON download_state(last_modified);
+CREATE INDEX download_state_index2 ON download_state(state, last_modified);
+CREATE INDEX download_state_index4 ON download_state(state, bw, clip, videodate); -- for status and next
+
+
+CREATE TABLE users (
+    name text PRIMARY KEY,
+    contact text,
+    token text
+);
+CREATE INDEX users_index ON users(name);
+
+CREATE TABLE video_info (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key text,
+    username text,
+    info text,
+    last_modified TIMESTAMP DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
+);
+CREATE INDEX video_info_index ON video_info(key);
+
+-- vim:ft=sql
