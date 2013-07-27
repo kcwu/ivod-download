@@ -3,6 +3,9 @@ import sqlite3
 class DB:
     def __init__(self):
         self.conn = sqlite3.connect('ivod.db')
+        c = self.conn.cursor()
+        c.execute('PRAGMA journal_mode=WAL')
+        c.close()
 
     def close(self):
         self.conn.close()

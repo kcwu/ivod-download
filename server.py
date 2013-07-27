@@ -33,9 +33,10 @@ class IVOD:
 
         data['status'] = cd(lambda: cd(lambda: cd(lambda: cd(int))))
 
-        db = DB()
-        rows = db.get_status()
-        db.close()
+        with g_dblock:
+            db = DB()
+            rows = db.get_status()
+            db.close()
         for year, clip, bw, state, count in rows:
             print year, clip, bw, state, count
             state = {
@@ -54,20 +55,23 @@ class IVOD:
         #return serve_file(os.path.join(current_dir, 'static', 'index.html'))
 
     @cherrypy.expose
-    def register(self, name, contact):
+    def register(self, *args, **argd):
+        name = argd.get('name')
+        contact = argd.get('contact')
         if not name or not contact:
             return json.dumps(dict(result='error', msg='empty name or contact'))
         pattern = r'^[a-zA-Z0-9_@.-]+$'
         if not re.match(pattern, name) or not re.match(pattern, contact):
             return json.dumps(dict(result='error', msg='valid pattern: %s' % pattern))
 
-        db = DB()
-        if db.get_user_token(name):
-            return json.dumps(dict(result='error', msg='user exists'))
-        assert name and contact
-        token = str(random.getrandbits(32))
-        db.add_user_token(name, contact, token)
-        db.close()
+        with g_dblock:
+            db = DB()
+            if db.get_user_token(name):
+                return json.dumps(dict(result='error', msg='user exists'))
+            assert name and contact
+            token = str(random.getrandbits(32))
+            db.add_user_token(name, contact, token)
+            db.close()
         return json.dumps(dict(result='ok', token=token))
 
     @cherrypy.expose
@@ -87,8 +91,9 @@ class IVOD:
         if not name or not token:
             return 'Empty name or token'
         db = DB()
-        if db.get_user_token(name) != token:
-            return json.dumps('invalid token')
+        with g_dblock:
+            if db.get_user_token(name) != token:
+                return json.dumps('invalid token')
 
         # bw, clip
         # 0, 0  200KB/s
@@ -112,7 +117,7 @@ class IVOD:
                     SELECT key, MIN(last_modified), state
                     FROM download_state 
                     WHERE (
-                        (videodate < '2010-01-01' AND state = 'no')
+                        (videodate < '2011-01-01' AND state = 'no')
                         OR (state = 'downloading' AND clip = 1 AND last_modified < date('now', '-1 hours'))
                         OR (state = 'downloading' AND clip = 0 AND last_modified < date('now', '-6 hours'))
                         OR (state = 'failed' AND last_modified < date('now', '-10 minutes'))
@@ -160,9 +165,10 @@ class IVOD:
 
     @cherrypy.expose
     def status(self):
-        db = DB()
-        rows = db.get_status()
-        db.close()
+        with g_dblock:
+            db = DB()
+            rows = db.get_status()
+            db.close()
         return json.dumps(rows)
 
 
