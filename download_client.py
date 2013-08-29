@@ -9,6 +9,8 @@ import urllib
 import urllib2
 import traceback
 import hashlib
+import datetime
+import random
 from optparse import OptionParser
 
 import util
@@ -21,6 +23,8 @@ msdl_bin = './msdl'
 
 g_alt_server = False
 jm = None
+
+program_start_time = time.time()
 
 class JobManager:
     def __init__(self):
@@ -67,7 +71,10 @@ class JobManager:
 
     def change_state(self, job, state, info):
         #print 'change_state', job, state
-        self._request('change', key=job, state=state, info=info)
+        if info:
+            self._request('change', key=job, state=state, info=info)
+        else:
+            self._request('change', key=job, state=state)
 
     def register(self, name, contact):
         r = json.loads(self._request('register', name=name, contact=contact))
@@ -105,26 +112,13 @@ def is_success(logdata, tmp_a, tmp_b, tmp_c):
             os.rename(tmp_b, tmp_a)
         else:
             print 'unknown extra file ???????????????????'
-            assert 0
+            #assert 0
             return False
 
     if 'fail' in logdata:
         return False
     return 'finished' in logdata and 'FINISHED' in logdata
 
-
-def get_store_path(t, url):
-    timecode = t.replace('-',os.sep).replace(':','').replace(' ','-')
-    dn = os.path.join('video', timecode[:10])
-    if not os.path.exists(dn):
-        os.makedirs(dn)
-
-    url = urllib.unquote(url.encode('utf8'))
-    urlpath = '/'.join(url.split('/')[3:])
-    fn = urlpath.replace('/', '_')
-    assert '..' not in fn
-    path = os.path.join(str(dn), fn)
-    return path
 
 
 def fetch(job):
@@ -136,7 +130,7 @@ def fetch(job):
     if g_alt_server:
         url = url.replace('mediavod01', 'mediavod02')
 
-    fn = get_store_path(t, url)
+    fn = util.get_store_path(t, url)
     print url
     if options.verbose:
         print fn
@@ -171,6 +165,7 @@ def fetch(job):
         os.rename(tmp_a, os_filename(fn))
 
         info = util.collect_video_info(os_filename(fn))
+        assert info
         return dict(state='downloaded', sleep=10, info=json.dumps(info, sort_keys=True))
 
     g_alt_server = not g_alt_server
@@ -182,6 +177,12 @@ def fetch(job):
 def worker(bw):
     while True:
         print '-'*30
+
+        if 6 <= datetime.datetime.now().hour <= 19 and random.random() < 0.5:
+            print 'office hour, sleep 1 hour'
+            time.sleep(3600)
+            continue
+
         job = jm.get(bw)
         if options.verbose:
             print 'job', job
@@ -202,6 +203,11 @@ def worker(bw):
             if not result:
                 result = dict(state='failed', sleep=60*10)
             jm.change_state(job, result['state'], result.get('info'))
+
+        if os.path.exists('stop-download') and os.path.getmtime('stop-download') > program_start_time:
+            print 'stop-download'
+            break
+
         if result['sleep']:
             print 'sleep', result['sleep'], 'seconds'
             time.sleep(result['sleep'])

@@ -179,7 +179,7 @@ def query(keyword, commissionerName, film='c', select_type='class', condition=No
 
     # 1. get cookie, and "as_fid"
     r = requests.get(ivod_url + 'new_vod_1t.jsp?udlang=ch')
-    m = re.search(ur'<input type=hidden name="as_fid" value="(\d+)" />', r.text)
+    m = re.search(ur'<input type=hidden name="as_fid" value="([^"]+)" />', r.text)
     assert m
     query['as_fid'] = m.group(1)
 

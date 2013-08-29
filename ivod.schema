@@ -33,6 +33,15 @@ CREATE INDEX download_state_index2 ON download_state(state, last_modified);
 CREATE INDEX download_state_index4 ON download_state(state, bw, clip, videodate); -- for status and next
 
 
+CREATE TABLE upload_state (
+    key text PRIMARY KEY,
+    state text,
+    youtube_id text,
+    last_modified TIMESTAMP DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
+);
+CREATE INDEX upload_state_index_on_state ON upload_state(state);
+
+
 CREATE TABLE users (
     name text PRIMARY KEY,
     contact text,

@@ -117,10 +117,11 @@ class IVOD:
                     SELECT key, MIN(last_modified), state
                     FROM download_state 
                     WHERE (
-                        (videodate < '2011-01-01' AND state = 'no')
-                        OR (state = 'downloading' AND clip = 1 AND last_modified < date('now', '-1 hours'))
-                        OR (state = 'downloading' AND clip = 0 AND last_modified < date('now', '-6 hours'))
+                        (state = 'no')
+                        OR (state = 'downloading' AND clip = 1 AND last_modified < datetime('now', '-2 hours'))
+                        OR (state = 'downloading' AND clip = 0 AND last_modified < datetime('now', '-8 hours'))
                         OR (state = 'failed' AND last_modified < date('now', '-10 minutes'))
+                        OR (state = '404' AND last_modified < date('now', '-3 days'))
                         ) AND %s
 
                     -- ORDER BY last_modified 
@@ -128,7 +129,8 @@ class IVOD:
                     ''' % bw_cond,
                     )
             print 't', time.time() - t0
-            if not result:
+
+            if not result or not result[0][0]:
                 return 'done'
 
             row = result[0]

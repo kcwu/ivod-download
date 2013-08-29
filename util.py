@@ -2,12 +2,33 @@ import os
 import re
 import sys
 import hashlib
+import urllib
+import json
+import time
 
 import wmv
 
 def fix_mms(v):
     v = ''.join([c if ord(c) < 0x80 else '%%%02x'%ord(c) for c in v.encode('utf8')])
     return v
+
+def make_download_key(o, url):
+    timecode = o['time'].replace('-','/').replace(':','').replace(' ','-')
+    key = json.dumps((timecode[:10],url))
+    return key
+
+def get_store_path(t, url):
+    timecode = t.replace('-',os.sep).replace(':','').replace(' ','-')
+    dn = os.path.join('video', timecode[:10])
+    if not os.path.exists(dn):
+        os.makedirs(dn)
+
+    url = urllib.unquote(url.encode('utf8'))
+    urlpath = '/'.join(url.split('/')[3:])
+    fn = urlpath.replace('/', '_')
+    assert '..' not in fn
+    path = os.path.join(str(dn), fn)
+    return path
 
 def extract_mms_link_from_vodeo_page(html):
     m = re.search(ur'(mms://[^"]*)', html)
@@ -23,7 +44,9 @@ def calc_checksum(fn):
     h = hashlib.new(alg)
     with file(fn, 'rb') as f:
         while True:
-            b = f.read(2**20)
+            # don't make disks too busy
+            b = f.read(2**16)
+            time.sleep(0.002)
             if not b:
                 break
             h.update(b)

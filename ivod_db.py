@@ -1,4 +1,5 @@
 import sqlite3
+import json
 
 class DB:
     def __init__(self):
@@ -48,6 +49,24 @@ class DB:
         self.modify('INSERT INTO download_state_history (key,username, state) VALUES (?,?,?)',
                 key, name, state)
 
+    def add_upload_state(self, key, state, youtube_id):
+        self.modify('''
+        INSERT INTO upload_state(key,state,youtube_id) VALUES(?,?,?)''',
+        key, state, youtube_id)
+
+    def change_upload_state(self, key, state, youtube_id):
+        self.modify('''
+        UPDATE upload_state
+        SET state = ?, youtube_id = ?, last_modified = (strftime('%Y-%m-%d %H:%M:%f', 'now'))
+        WHERE key = ?''',
+        state, youtube_id, key)
+
+    def get_upload_state(self, key):
+        rows = self.query('SELECT state,youtube_id,last_modified FROM upload_state WHERE key = ? LIMIT 1', key)
+        if not rows:
+            return None
+        return rows[0]
+
     def add_job_state(self, key, name, state):
         bw = 1 if '-100k' in key else 0
         clip = 1 if '-clip' in key else 0
@@ -73,7 +92,6 @@ class DB:
     def add_video_info(self, key, name, info):
         self.modify('INSERT INTO video_info (key,username, info) VALUES (?,?,?)',
                 key, name, info)
-
 
     def get_status(self):
         return self.query('''
