@@ -1,12 +1,10 @@
-import sqlite3
 import json
+
+import psycopg2
 
 class DB:
     def __init__(self):
-        self.conn = sqlite3.connect('ivod.db')
-        c = self.conn.cursor()
-        c.execute('PRAGMA journal_mode=WAL')
-        c.close()
+        self.conn = psycopg2.connect('dbname=ivod user=ivod')
 
     def close(self):
         self.conn.close()
@@ -27,42 +25,42 @@ class DB:
         c.close()
 
     def get_user_token(self, name):
-        rows = self.query('SELECT token FROM users WHERE name = ? LIMIT 1', name)
+        rows = self.query('SELECT token FROM users WHERE name = %s LIMIT 1', name)
         if not rows:
             return None
         return rows[0][0]
 
     def add_user_token(self, name, contact, token):
         with self.conn:
-            self.modify('INSERT INTO users (name, contact, token) VALUES (?,?,?)',
+            self.modify('INSERT INTO users (name, contact, token) VALUES (%s,%s,%s)',
                 name, contact, token)
 
     def get_metadata(self, vid):
-        return self.query('SELECT data FROM metadata WHERE vid = ?', vid)
+        return self.query('SELECT data FROM metadata WHERE vid = %s', vid)
 
     def change_job_state(self, key, name, state):
         self.modify('''
         UPDATE download_state 
-        SET state = ?, username = ?, last_modified = (strftime('%Y-%m-%d %H:%M:%f', 'now'))
-        WHERE key = ?''',
+        SET state = %s, username = %s, last_modified = now()
+        WHERE key = %s''',
                 state, name, key)
-        self.modify('INSERT INTO download_state_history (key,username, state) VALUES (?,?,?)',
+        self.modify('INSERT INTO download_state_history (key,username, state) VALUES (%s,%s,%s)',
                 key, name, state)
 
     def add_upload_state(self, key, state, youtube_id):
         self.modify('''
-        INSERT INTO upload_state(key,state,youtube_id) VALUES(?,?,?)''',
+        INSERT INTO upload_state(key,state,youtube_id) VALUES(%s,%s,%s)''',
         key, state, youtube_id)
 
     def change_upload_state(self, key, state, youtube_id):
         self.modify('''
         UPDATE upload_state
-        SET state = ?, youtube_id = ?, last_modified = (strftime('%Y-%m-%d %H:%M:%f', 'now'))
-        WHERE key = ?''',
+        SET state = %s, youtube_id = %s, last_modified = now()
+        WHERE key = %s''',
         state, youtube_id, key)
 
     def get_upload_state(self, key):
-        rows = self.query('SELECT state,youtube_id,last_modified FROM upload_state WHERE key = ? LIMIT 1', key)
+        rows = self.query('SELECT state,youtube_id,last_modified FROM upload_state WHERE key = %s LIMIT 1', key)
         if not rows:
             return None
         return rows[0]
@@ -72,31 +70,31 @@ class DB:
         clip = 1 if '-clip' in key else 0
         timecode = json.loads(key)[0]
         timecode = timecode.replace('/', '-')
-        self.modify('INSERT INTO download_state(key,username,state,bw,clip,videodate) VALUES(?,?,?,?,?,?)',
+        self.modify('INSERT INTO download_state(key,username,state,bw,clip,videodate) VALUES(%s,%s,%s,%s,%s,%s)',
                 key,name,'no', bw, clip, timecode)
         if state != 'no':
             self.change_job_state(key, name, state)
 
     def get_job_state(self, key):
-        rows = self.query('SELECT state FROM download_state WHERE key = ? LIMIT 1', key)
+        rows = self.query('SELECT state FROM download_state WHERE key = %s LIMIT 1', key)
         if not rows:
             return None
         return rows[0][0]
 
     def get_video_info(self, key):
-        rows = self.query('SELECT info FROM video_info WHERE key = ? LIMIT 1', key)
+        rows = self.query('SELECT info FROM video_info WHERE key = %s LIMIT 1', key)
         if not rows:
             return None
         return rows[0][0]
 
     def add_video_info(self, key, name, info):
-        self.modify('INSERT INTO video_info (key,username, info) VALUES (?,?,?)',
+        self.modify('INSERT INTO video_info (key,username, info) VALUES (%s,%s,%s)',
                 key, name, info)
 
     def get_status(self):
         return self.query('''
                 SELECT 
-                    substr(videodate,1,4) as year, 
+                    date_part('year', videodate)::int as year,
                     clip, 
                     bw, 
                     state,

@@ -101,7 +101,7 @@ class IVOD:
         # 1, 0  70KB/s
         # 1, 1  70KB/s
         if bw == 'high':
-            bw_cond = '1'
+            bw_cond = 'true'
         elif bw == 'mid':
             # bw, clip != 0, 1
             bw_cond = '(bw = 1 OR clip = 0)'
@@ -109,23 +109,23 @@ class IVOD:
             # bw = 1
             bw_cond = '(bw = 1)'
         else:
-            bw_cond = '1'
+            bw_cond = 'true'
 
         with g_dblock:
             t0 = time.time()
             result = db.query('''
-                    SELECT key, MIN(last_modified), state
+                    SELECT key, last_modified, state
                     FROM download_state 
                     WHERE (
                         (state = 'no')
-                        OR (state = 'downloading' AND clip = 1 AND last_modified < datetime('now', '-2 hours'))
-                        OR (state = 'downloading' AND clip = 0 AND last_modified < datetime('now', '-8 hours'))
-                        OR (state = 'failed' AND last_modified < date('now', '-10 minutes'))
-                        OR (state = '404' AND last_modified < date('now', '-3 days'))
+                        OR (state = 'downloading' AND clip = 1 AND last_modified < now() - interval '2 hours')
+                        OR (state = 'downloading' AND clip = 0 AND last_modified < now() - interval '8 hours')
+                        OR (state = 'failed' AND last_modified < now() - interval '10 minutes')
+                        OR (state = '404' AND last_modified < now() - interval '3 days')
                         ) AND %s
 
-                    -- ORDER BY last_modified 
-                    -- LIMIT 1
+                    ORDER BY last_modified
+                    LIMIT 1
                     ''' % bw_cond,
                     )
             print 't', time.time() - t0

@@ -1,22 +1,22 @@
 CREATE TABLE metadata_per_date (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     fetch_date date,
     text text
 );
 
 CREATE TABLE metadata (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     data text
 );
 
 -- state:
 --   no, downloading, downlaoded, stored, 404, failed
 CREATE TABLE download_state_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     key text,
-    username,
+    username text,
     state text,
-    last_modified TIMESTAMP DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
+    last_modified TIMESTAMP DEFAULT now()
 );
 
 CREATE TABLE download_state (
@@ -26,7 +26,7 @@ CREATE TABLE download_state (
     videodate DATE,
     bw INTEGER,
     clip INTEGER,
-    last_modified TIMESTAMP DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
+    last_modified TIMESTAMP DEFAULT now()
 );
 CREATE INDEX download_state_index ON download_state(last_modified);
 CREATE INDEX download_state_index2 ON download_state(state, last_modified);
@@ -37,7 +37,7 @@ CREATE TABLE upload_state (
     key text PRIMARY KEY,
     state text,
     youtube_id text,
-    last_modified TIMESTAMP DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
+    last_modified TIMESTAMP DEFAULT now()
 );
 CREATE INDEX upload_state_index_on_state ON upload_state(state);
 
@@ -50,11 +50,11 @@ CREATE TABLE users (
 CREATE INDEX users_index ON users(name);
 
 CREATE TABLE video_info (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     key text,
     username text,
     info text,
-    last_modified TIMESTAMP DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
+    last_modified TIMESTAMP DEFAULT now()
 );
 CREATE INDEX video_info_index ON video_info(key);
 
