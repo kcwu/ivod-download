@@ -70,6 +70,11 @@ def guess_mms_from_url(bw, url):
 
     return mms
 
+def extract_wmvid_from_url(url):
+    m = re.search(r'WMVID=([^&]+)', url)
+    assert m
+    return m.group(1)
+
 def fix_url(v):
     v = urllib.quote(v.encode('big5'), '&=?/')
     v = ivod_url + v
@@ -226,6 +231,16 @@ def query(keyword, commissionerName, film='c', select_type='class', condition=No
             x['video_url_w'] = guess_mms_from_url('w', x['video_page_w'])
             x['video_url_n'] = guess_mms_from_url('n', x['video_page_n'])
 
+            wmvid_w = wmvid_n = None
+            if x['video_page_w']:
+                wmvid_w = extract_wmvid_from_url(x['video_page_w'])
+            if x['video_page_n']:
+                wmvid_n = extract_wmvid_from_url(x['video_page_n'])
+            if wmvid_w and wmvid_n:
+                assert wmvid_w == wmvid_n
+            if wmvid_w or wmvid_n:
+                x['wmvid'] = wmvid_w or wmvid_n
+
 
             # normalize
             for k, v in sorted(x.items()):
@@ -275,15 +290,17 @@ def date_range(d1, d2):
 def get_list_by_date(date, film):
     assert film in ('clip', 'whole')
 
-    print date, film
     fn = 'data/%s/%s.txt' % (film, date)
+    fn_tmp = fn + '.tmp'
     if os.path.exists(fn):
         return
-    with file(fn, 'w') as f:
+    print date, film
+    with file(fn_tmp, 'w') as f:
         for d in query_by_date(date, film[0]):
             for k, v in sorted(d.items()):
                 print k, v
             f.write(json_dumps(d) + '\n')
+    os.rename(fn_tmp, fn)
 
 def main():
     for date in date_range(
