@@ -12,11 +12,6 @@ def fix_mms(v):
     v = ''.join([c if ord(c) < 0x80 else '%%%02x'%ord(c) for c in v.encode('utf8')])
     return v
 
-def make_download_key(o, url):
-    timecode = o['time'].replace('-','/').replace(':','').replace(' ','-')
-    key = json.dumps((timecode[:10],url))
-    return key
-
 def get_store_path(t, url):
     timecode = t.replace('-',os.sep).replace(':','').replace(' ','-')
     dn = os.path.join('video', timecode[:10])

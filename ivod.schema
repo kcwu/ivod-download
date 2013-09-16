@@ -18,6 +18,7 @@ CREATE TABLE download_state_history (
     state text,
     last_modified TIMESTAMP DEFAULT now()
 );
+CREATE INDEX download_state_history_index ON download_state_history(key, state);
 
 CREATE TABLE download_state (
     key text PRIMARY KEY,

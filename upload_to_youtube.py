@@ -19,6 +19,9 @@ account_name, account_passwd = open('.youtube_account').read().split()
 STATE_UPLOADING = 'uploading'
 STATE_UPLOADED = 'uploaded'
 STATE_ERROR = 'error'
+STATE_NO = 'no'
+
+cached_upload_state = {}
 
 def shrink_by_byte_len(s, n):
     assert type(s) is unicode
@@ -35,7 +38,7 @@ def collect_metadata(firm, o):
     keywords.append(u'立法院議事轉播')
 
     # brief
-    brief = o['summary'].replace('\x0b', '\n').split('\n')[0]
+    brief = o['summary'].replace('\x0b', '\n').replace('\x15', '\n').split('\n')[0]
     m = re.match(ur'(.*?會議)', brief)
     if m:
         brief = m.group(1)
@@ -75,7 +78,7 @@ def collect_metadata(firm, o):
 時間: %s
 原始影片: %s
 ***''' % (
-        o['summary'].replace('\x0b', '\n'),
+        o['summary'].replace('\x0b', '\n').replace('\x15', '\n'),
         o['time'],
         o['video_url_w']
         )
@@ -98,30 +101,36 @@ def do_upload(url, cmd, state):
 
 def upload(firm, o):
     url = o['video_url_w']
-
-    key = util.make_download_key(o, url)
-    if db.get_job_state(key) != 'stored':
+    if url == 'n/a':
         return
+
+    state = cached_upload_state.get(url)
+    if not state:
+        return
+
+    if state == STATE_UPLOADED:
+        return
+
+    assert db.get_job_state(url) == 'stored'
 
     fn = util.get_store_path(o['time'], url)
     assert os.path.exists(fn)
 
     with db.conn:
-        state = db.get_upload_state(url)
-        if state:
-            if state[0] == STATE_UPLOADED:
-                return
-            if state[0] == STATE_UPLOADING:
-                # TODO check last_modified
-                return
-            if state[0] != STATE_ERROR:
-                # unkown state
-                return
+        state = db.get_upload_state(url, for_update=True)
+        assert state
 
-        if state:
-            db.change_upload_state(url, STATE_UPLOADING, '')
-        else:
-            db.add_upload_state(url, STATE_UPLOADING, '')
+        if state[0] == STATE_UPLOADED:
+            return
+        if state[0] == STATE_UPLOADING:
+            # TODO check last_modified
+            return
+        if state[0] not in (STATE_ERROR, STATE_NO):
+            # unkown state
+            return
+
+        db.change_upload_state(url, STATE_UPLOADING, '')
+        cached_upload_state[url] = STATE_UPLOADING
 
     metadata = collect_metadata(firm, o)
 
@@ -147,6 +156,7 @@ def upload(firm, o):
     result = None
     try:
         result = do_upload(url, cmd, state)
+        assert db.get_upload_state(url)[0] != STATE_UPLOADED
     except Exception:
         traceback.print_exc()
     finally:
@@ -154,6 +164,7 @@ def upload(firm, o):
             result = dict(state=STATE_ERROR, sleep=60*30)
         with db.conn:
             db.change_upload_state(url, result['state'], result.get('youtube_id', ''))
+            cached_upload_state[url] = result['state']
         print 'sleep', result['sleep']
         time.sleep(result['sleep'])
         print '-' * 30
@@ -165,6 +176,7 @@ def upload(firm, o):
 
 
 def main():
+    cached_upload_state.update(db.get_all_upload_state())
     for o in json.load(file('data/clip.json')):
         upload('c', o)
     for o in json.load(file('data/whole.json')):

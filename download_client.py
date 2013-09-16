@@ -170,18 +170,13 @@ def fetch(job):
 
     g_alt_server = not g_alt_server
     if '404 (Not Found)' in logdata:
-        return dict(state='404', sleep=10)
+        return dict(state='404', sleep=3)
     else:
         return dict(state='failed', sleep=60)
 
 def worker(bw):
     while True:
         print '-'*30
-
-        if 6 <= datetime.datetime.now().hour <= 19 and random.random() < 0.5:
-            print 'office hour, sleep 1 hour'
-            time.sleep(3600)
-            continue
 
         job = jm.get(bw)
         if options.verbose:

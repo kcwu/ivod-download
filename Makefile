@@ -1,5 +1,4 @@
 all:
 
-server-init:
-	rm -f ivod.db
-	sqlite3 ivod.db < ivod.schema
+dump:
+	pg_dump -Fc ivod -f ivod.pgdump

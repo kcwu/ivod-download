@@ -59,19 +59,17 @@ class DB:
         WHERE key = %s''',
         state, youtube_id, key)
 
-    def get_upload_state(self, key):
-        rows = self.query('SELECT state,youtube_id,last_modified FROM upload_state WHERE key = %s LIMIT 1', key)
+    def get_upload_state(self, key, for_update=False):
+        rows = self.query(
+                'SELECT state,youtube_id,last_modified FROM upload_state WHERE key = %s LIMIT 1' + (' FOR UPDATE' if for_update else ''),
+                key)
         if not rows:
             return None
         return rows[0]
 
-    def add_job_state(self, key, name, state):
-        bw = 1 if '-100k' in key else 0
-        clip = 1 if '-clip' in key else 0
-        timecode = json.loads(key)[0]
-        timecode = timecode.replace('/', '-')
+    def add_job_state(self, key, name, state, bw,clip,videodate):
         self.modify('INSERT INTO download_state(key,username,state,bw,clip,videodate) VALUES(%s,%s,%s,%s,%s,%s)',
-                key,name,'no', bw, clip, timecode)
+                key,name,'no', bw, clip, videodate)
         if state != 'no':
             self.change_job_state(key, name, state)
 
@@ -102,3 +100,11 @@ class DB:
                 FROM download_state 
                 GROUP BY year, clip, bw, state''')
 
+    def get_all_download_state(self):
+        return self.query('SELECT key,state FROM download_state')
+
+    def get_all_video_info(self):
+        return self.query('SELECT key,info FROM video_info')
+
+    def get_all_upload_state(self):
+        return self.query('SELECT key,state FROM upload_state')

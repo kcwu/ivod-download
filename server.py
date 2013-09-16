@@ -10,14 +10,13 @@ import random
 import json
 import collections
 import threading
+import datetime
 
 import cherrypy
 from cherrypy.lib.static import serve_file
 from cherrypy.lib import cptools, httputil
 
 from ivod_db import DB
-
-g_dblock = threading.RLock()
 
 def error_page(status, message, traceback, version):
     return status + ' ' + message
@@ -33,15 +32,15 @@ class IVOD:
 
         data['status'] = cd(lambda: cd(lambda: cd(lambda: cd(int))))
 
-        with g_dblock:
-            db = DB()
-            rows = db.get_status()
-            db.close()
+        db = DB()
+        rows = db.get_status()
+        db.close()
         for year, clip, bw, state, count in rows:
             print year, clip, bw, state, count
             state = {
                     'no': u'未下載',
-                    '404': u'404 not found',
+                    '404': u'404 not found (to try)',
+                    '404skip': u'404 not found',
                     'downloading': u'下載中',
                     'downloaded': u'已下載(a)',
                     'stored': u'已下載(b)',
@@ -64,14 +63,13 @@ class IVOD:
         if not re.match(pattern, name) or not re.match(pattern, contact):
             return json.dumps(dict(result='error', msg='valid pattern: %s' % pattern))
 
-        with g_dblock:
-            db = DB()
-            if db.get_user_token(name):
-                return json.dumps(dict(result='error', msg='user exists'))
-            assert name and contact
-            token = str(random.getrandbits(32))
-            db.add_user_token(name, contact, token)
-            db.close()
+        db = DB()
+        if db.get_user_token(name):
+            return json.dumps(dict(result='error', msg='user exists'))
+        assert name and contact
+        token = str(random.getrandbits(32))
+        db.add_user_token(name, contact, token)
+        db.close()
         return json.dumps(dict(result='ok', token=token))
 
     @cherrypy.expose
@@ -91,9 +89,18 @@ class IVOD:
         if not name or not token:
             return 'Empty name or token'
         db = DB()
-        with g_dblock:
-            if db.get_user_token(name) != token:
-                return json.dumps('invalid token')
+        if db.get_user_token(name) != token:
+            return json.dumps('invalid token')
+
+        now = datetime.datetime.now()
+        if 0 <= now.weekday() <= 4 and 6 <= now.hour <= 19:
+            result = db.query('''
+            SELECT count(*)
+            FROM download_state
+            WHERE state = 'downloading' AND last_modified > now() - interval '24 hours'
+            ''')
+            if result and int(result[0][0]) > 10:
+                return 'wait'
 
         # bw, clip
         # 0, 0  200KB/s
@@ -111,21 +118,22 @@ class IVOD:
         else:
             bw_cond = 'true'
 
-        with g_dblock:
+        while True:
             t0 = time.time()
             result = db.query('''
-                    SELECT key, last_modified, state
+                    SELECT key, videodate, last_modified, state
                     FROM download_state 
                     WHERE (
                         (state = 'no')
-                        OR (state = 'downloading' AND clip = 1 AND last_modified < now() - interval '2 hours')
-                        OR (state = 'downloading' AND clip = 0 AND last_modified < now() - interval '8 hours')
+                        OR (state = 'downloading' AND clip = 1 AND last_modified < now() - interval '12 hours')
+                        OR (state = 'downloading' AND clip = 0 AND last_modified < now() - interval '24 hours')
                         OR (state = 'failed' AND last_modified < now() - interval '10 minutes')
-                        OR (state = '404' AND last_modified < now() - interval '3 days')
-                        ) AND %s
+                        OR (state = '404' AND last_modified < now() - interval '10 minutes')
+                        ) AND state != '404skip' AND %s
 
                     ORDER BY last_modified
                     LIMIT 1
+                    FOR UPDATE
                     ''' % bw_cond,
                     )
             print 't', time.time() - t0
@@ -134,19 +142,28 @@ class IVOD:
                 return 'done'
 
             row = result[0]
-            key, last_modified, state = row
+            key, videodate, last_modified, state = row
 
+            if state == '404':
+                result = db.query('''
+                SELECT count(*)
+                FROM download_state_history
+                WHERE key = %s AND state = '404'
+                ''', key)
+                if int(result[0][0]) >= 10:
+                    with db.conn:
+                        db.change_job_state(key, name, '404skip')
+                    continue
 
-            #if last_modified < blah:
-            #    return 'wait'
             with db.conn:
                 db.change_job_state(key, name, 'downloading')
             db.close()
-            return key
+            return json.dumps((str(videodate).replace('-','/'), key))
 
     @cherrypy.expose
     def change(self, *args, **argd):
         key = argd.get('key')
+        date, url = json.loads(key)
         state = argd.get('state')
         info = argd.get('info')
         name = argd.get('name')
@@ -159,18 +176,25 @@ class IVOD:
 
         assert state in ('404', 'downloaded', 'failed')
         with db.conn:
-            db.change_job_state(key, name, state)
+            db.change_job_state(url, name, state)
             if info:
-                db.add_video_info(key, name, info)
+                db.add_video_info(url, name, info)
+            if state == '404':
+                result = db.query('''
+                SELECT count(*)
+                FROM download_state_history
+                WHERE key = %s AND state = '404'
+                ''', url)
+                if int(result[0][0]) >= 10:
+                    db.change_job_state(url, name, '404skip')
         db.close()
         return 'ok'
 
     @cherrypy.expose
     def status(self):
-        with g_dblock:
-            db = DB()
-            rows = db.get_status()
-            db.close()
+        db = DB()
+        rows = db.get_status()
+        db.close()
         return json.dumps(rows)
 
 

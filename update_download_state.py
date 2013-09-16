@@ -14,6 +14,9 @@ g_user = ''
 g_token = ''
 token_file = 'token.txt'
 
+cached_download_state = {}
+cached_video_info = {}
+
 def gen_job2(o):
 
     for bw in ('w', 'n'):
@@ -27,8 +30,7 @@ def gen_job2(o):
         fn = util.get_store_path(o['time'], url)
         assert fn
 
-        key = util.make_download_key(o, url)
-        state = db.get_job_state(key)
+        state = cached_download_state.get(url)
 
         if os.path.exists(fn):
             new_state = 'stored'
@@ -37,7 +39,7 @@ def gen_job2(o):
 
         if os.path.exists(fn):
             # video info
-            info0 = db.get_video_info(key)
+            info0 = cached_video_info.get(url)
             if info0 == 'None':
                 info0 = None
             assert info0 != 'None'
@@ -60,13 +62,19 @@ def gen_job2(o):
             else:
                 assert info
                 with db.conn:
-                    db.add_video_info(key, g_user, info)
+                    cached_video_info[url] = info
+                    db.add_video_info(url, g_user, info)
 
         with db.conn:
             if state is None:
-                db.add_job_state(key, g_user, new_state)
+                bw = 1 if '-100k' in url else 0
+                clip = 1 if '-clip' in url else 0
+                videodate = o['time'][:10]
+                db.add_job_state(url, g_user, new_state, bw,clip,videodate)
+                cached_download_state[url] = new_state
             elif new_state == 'stored' and state != 'stored':
-                db.change_job_state(key, g_user, new_state)
+                db.change_job_state(url, g_user, new_state)
+                cached_download_state[url] = new_state
 
 
 
@@ -85,12 +93,30 @@ def main():
         g_user = f.readline().strip()
         g_token = f.readline().strip()
         assert g_user and g_token
-    
+
+    cached_download_state.update(db.get_all_download_state())
+    print len(cached_download_state)
+    cached_video_info.update(db.get_all_video_info())
+    print len(cached_video_info)
+
     with db.conn:
         if not db.get_user_token(g_user):
             db.add_user_token(g_user, g_user, g_token)
+
     gen_job()
 
+    with db.conn:
+        db.modify('''
+            INSERT INTO upload_state(key, state)
+                SELECT key, 'no'
+                FROM download_state
+                WHERE state='stored' AND bw=0 AND NOT EXISTS (
+                    SELECT key
+                        FROM upload_state
+                        WHERE download_state.key = upload_state.key
+                );
+        ''')
+    
 
 
 

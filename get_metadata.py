@@ -292,7 +292,7 @@ def get_list_by_date(date, film):
 
     fn = 'data/%s/%s.txt' % (film, date)
     fn_tmp = fn + '.tmp'
-    if os.path.exists(fn):
+    if os.path.exists(fn) and os.path.getmtime(fn) < time.time() - 86400*7:
         return
     print date, film
     with file(fn_tmp, 'w') as f:
