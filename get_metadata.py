@@ -122,7 +122,7 @@ def extract_result(film, html):
                         continue
                     v = fix_url(v)
                     d[k] = v
-                print k, v
+                print k, unicode(v).encode('utf8')
         print
     else:
         num = len(re.findall(ur'>主題<', html))
@@ -153,7 +153,7 @@ def extract_result(film, html):
                 if k in ('video_page_w', 'video_page_n'):
                     v = fix_url(v)
                     d[k] = v
-                print k, v
+                print k, unicode(v).encode('utf8')
             result.append(d)
         print
 
@@ -292,20 +292,23 @@ def get_list_by_date(date, film):
 
     fn = 'data/%s/%s.txt' % (film, date)
     fn_tmp = fn + '.tmp'
-    if os.path.exists(fn) and os.path.getmtime(fn) < time.time() - 86400*7:
-        return
+    if os.path.exists(fn):
+        d = time.strptime(os.path.basename(fn), '%Y-%m-%d.txt')
+        if time.mktime(d) < time.time() - 86400*7:
+            return
+
     print date, film
     with file(fn_tmp, 'w') as f:
         for d in query_by_date(date, film[0]):
             for k, v in sorted(d.items()):
-                print k, v
+                print k, unicode(v).encode('utf8')
             f.write(json_dumps(d) + '\n')
     os.rename(fn_tmp, fn)
 
 def main():
     for date in date_range(
             datetime.date(2009,1,1),
-            datetime.date.today()):
+            datetime.date.today() + datetime.timedelta(days=1)):
         get_list_by_date(date, 'clip')
         get_list_by_date(date, 'whole')
 

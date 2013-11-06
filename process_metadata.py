@@ -18,6 +18,9 @@ JUD 司法及法制
 SWE 社會福利及衛生環境
 WHL 全院
 PRO 程序
+DIS 紀律
+CON 修憲
+EXP 經費稽核
 # obsolete
 IAP 內政及民族
 IAF 內政及邊政
@@ -127,10 +130,17 @@ def parse_files(film):
     return json_dumps(result).encode('utf8')
 
 def main():
-    with file('data/clip.json', 'w') as f:
+    fn = 'data/clip.json'
+    fn_tmp = fn + '.tmp'
+    with file(fn_tmp, 'w') as f:
         f.write(parse_files('c'))
-    with file('data/whole.json', 'w') as f:
+    os.rename(fn_tmp, fn)
+
+    fn = 'data/whole.json'
+    fn_tmp = fn + '.tmp'
+    with file(fn_tmp, 'w') as f:
         f.write(parse_files('w'))
+    os.rename(fn_tmp, fn)
 
 if __name__ == '__main__':
     main()
