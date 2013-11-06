@@ -7,6 +7,7 @@ db = ivod_db.DB()
 
 def main():
     youtube_urlmap = dict(db.query("SELECT key, youtube_id FROM upload_state WHERE state = 'uploaded'"))
+    vinfo_map = dict(db.query("SELECT key, info FROM video_info"))
 
     result = []
     for o in json.load(file('data/clip.json')):
@@ -29,6 +30,16 @@ def main():
         st, diff = map(float, [st, diff])
         wmvid = os.path.splitext(fn)[0]
         start_time[wmvid] = st
+
+    # duration
+    for o in result:
+        if 'length' in o:
+            continue
+        url = o['video_url_w']
+        vinfo = vinfo_map.get(url)
+        if vinfo and vinfo != 'None':
+            duration = int(json.loads(vinfo_map[url])['duration'])
+            o['length'] = duration
 
     # process: add some fields
     for o in result:
